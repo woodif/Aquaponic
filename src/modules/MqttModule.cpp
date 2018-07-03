@@ -2,16 +2,18 @@
 extern int temp;
 
 #define MQTT_CONFIG_FILE "/mymqtt.json"
-void MqttModule::config(CMMC_System *os, AsyncWebServer* server) {
+void MqttModule::config(CMMC_System *os, AsyncWebServer *server)
+{
   strcpy(this->path, "/api/mqtt");
   this->_serverPtr = server;
   this->_managerPtr = new CMMC_ConfigManager(MQTT_CONFIG_FILE);
   this->_managerPtr->init();
-  this->_managerPtr->load_config([&](JsonObject * root, const char* content) {
-    if (root == NULL) {
+  this->_managerPtr->load_config([&](JsonObject *root, const char *content) {
+    if (root == NULL)
+    {
       Serial.print("mqtt.json failed. >");
       Serial.println(content);
-      return ;
+      return;
     }
     Serial.println(content);
     Serial.println("[user] mqtt config json loaded..");
@@ -22,18 +24,18 @@ void MqttModule::config(CMMC_System *os, AsyncWebServer* server) {
     char mqtt_prefix[40] = "";
     char mqtt_port[10] = "";
     char mqtt_device_name[20] = "";
-    bool     lwt;
+    bool lwt;
     uint32_t pubEveryS;
-    const char* mqtt_configs[] = {(*root)["host"],
+    const char *mqtt_configs[] = {(*root)["host"],
                                   (*root)["username"], (*root)["password"],
                                   (*root)["clientId"], (*root)["port"],
                                   (*root)["deviceName"],
                                   (*root)["prefix"], // [6]
                                   (*root)["lwt"],
-                                  (*root)["publishRateSecond"]
-                                 };
+                                  (*root)["publishRateSecond"]};
 
-    if (mqtt_configs[0] != NULL) {
+    if (mqtt_configs[0] != NULL)
+    {
       strcpy(mqtt_host, mqtt_configs[0]);
       strcpy(mqtt_user, mqtt_configs[1]);
       strcpy(mqtt_pass, mqtt_configs[2]);
@@ -45,14 +47,17 @@ void MqttModule::config(CMMC_System *os, AsyncWebServer* server) {
       lwt = String(mqtt_configs[7]).toInt();
       pubEveryS = String(mqtt_configs[8]).toInt();
 
-      if (strcmp(mqtt_device_name, "") == 0) {
+      if (strcmp(mqtt_device_name, "") == 0)
+      {
         sprintf(mqtt_device_name, "%08x", ESP.getChipId());
       }
-      else {
+      else
+      {
         Serial.printf("DEVICE NAME = %s\r\n", mqtt_device_name);
       }
 
-      if (strcmp(mqtt_clientId, "") == 0) {
+      if (strcmp(mqtt_clientId, "") == 0)
+      {
         sprintf(mqtt_clientId, "%08x", ESP.getChipId());
       }
     }
@@ -67,44 +72,80 @@ void MqttModule::config(CMMC_System *os, AsyncWebServer* server) {
     DEVICE_NAME = String(mqtt_device_name);
   });
 
-
   this->configWebServer();
 };
 
-void MqttModule::configWebServer() {
+void MqttModule::configWebServer()
+{
   static MqttModule *that = this;
-  _serverPtr->on(this->path, HTTP_POST, [&](AsyncWebServerRequest * request) {
+  _serverPtr->on(this->path, HTTP_POST, [&](AsyncWebServerRequest *request) {
     String output = that->saveConfig(request, this->_managerPtr);
     request->send(200, "application/json", output);
   });
 }
 
-void MqttModule::setup() {
+void MqttModule::setup()
+{
   Serial.println("MqttModule::setup");
+
+  ads1115 = new Adafruit_ADS1115(0x48);
+  ads1115->begin();
+  ads1115->setGain(GAIN_ONE);
+
+  oneWire = new OneWire(14);
+  sensor = new DallasTemperature(oneWire);
+  sensor->begin();
+  sensor->requestTemperatures();
+  DeviceAddress insideThermometer;
+  data1.field1 = sensor->getTempC(insideThermometer);
+
   init_mqtt();
 };
 
-void MqttModule::loop() {
+void MqttModule::loop()
+{
+
+  int16_t adc0, adc1, adc2, adc3;
+
+  adc0 = ads1115->readADC_SingleEnded(0);
+  adc1 = ads1115->readADC_SingleEnded(1);
+  adc2 = ads1115->readADC_SingleEnded(2);
+  adc3 = ads1115->readADC_SingleEnded(3);
+  Serial.print("Temperature is: ");
+  Serial.println(sensor->getTempCByIndex(0));
+  Serial.print("AIN0: ");
+  Serial.println(adc0);
+  Serial.print("AIN1: ");
+  Serial.println(adc1);
+  Serial.print("AIN2: ");
+  Serial.println(adc2);
+  Serial.print("AIN3: ");
+  Serial.println(adc3);
+  Serial.println(" ");
+
+  delay(1000);
+
   mqtt->loop();
 };
 
 // MQTT INITIALIZER
 
-MqttConnector* MqttModule::init_mqtt()
+MqttConnector *MqttModule::init_mqtt()
 {
   this->mqtt = new MqttConnector(this->MQTT_HOST.c_str(), this->MQTT_PORT);
 
-  mqtt->on_connecting([&](int counter, bool * flag) {
+  mqtt->on_connecting([&](int counter, bool *flag) {
     Serial.printf("[%lu] MQTT CONNECTING.. \r\n", counter);
-    if (counter >= MQTT_CONNECT_TIMEOUT) {
+    if (counter >= MQTT_CONNECT_TIMEOUT)
+    {
       ESP.reset();
     }
     delay(1000);
   });
 
-  mqtt->on_prepare_configuration([&](MqttConnector::Config * config) -> void {
+  mqtt->on_prepare_configuration([&](MqttConnector::Config *config) -> void {
     Serial.printf("lwt = %lu\r\n", MQTT_LWT);
-    config->clientId  = MQTT_CLIENT_ID;
+    config->clientId = MQTT_CLIENT_ID;
     config->channelPrefix = MQTT_PREFIX;
     config->enableLastWill = MQTT_LWT;
     config->retainPublishMessage = false;
@@ -125,7 +166,7 @@ MqttConnector* MqttModule::init_mqtt()
     // FORMAT
     // d:quickstart:<type-id>:<device-id>
     //config->clientId  = String("d:quickstart:esp8266meetup:") + macAddr;
-    config->topicPub  = MQTT_PREFIX + String(DEVICE_NAME) + String("/status");
+    config->topicPub = MQTT_PREFIX + String(DEVICE_NAME) + String("/status");
   });
 
   mqtt->on_after_prepare_configuration([&](MqttConnector::Config config) -> void {
@@ -139,7 +180,8 @@ MqttConnector* MqttModule::init_mqtt()
     // sub->add_topic(MQTT_PREFIX + "/" + MQTT_CLIENT_ID + "/$/+");
   });
 
-  if (mqtt == NULL) {
+  if (mqtt == NULL)
+  {
     Serial.println("MQTT is undefined.");
   }
 
@@ -151,8 +193,9 @@ MqttConnector* MqttModule::init_mqtt()
   return mqtt;
 }
 
-void MqttModule::register_receive_hooks(MqttConnector *mqtt) {
-  mqtt->on_subscribe([&](MQTT::Subscribe * sub) -> void {
+void MqttModule::register_receive_hooks(MqttConnector *mqtt)
+{
+  mqtt->on_subscribe([&](MQTT::Subscribe *sub) -> void {
     Serial.printf("onSubScribe myName = %s \r\n", DEVICE_NAME.c_str());
     sub->add_topic(MQTT_PREFIX + DEVICE_NAME + String("/$/+"));
     sub->add_topic(MQTT_PREFIX + MQTT_CLIENT_ID + String("/$/+"));
@@ -161,37 +204,44 @@ void MqttModule::register_receive_hooks(MqttConnector *mqtt) {
     Serial.printf("publish every %lu s\r\n", PUBLISH_EVERY);
   });
 
-  mqtt->on_before_message_arrived_once([&](void) { });
+  mqtt->on_before_message_arrived_once([&](void) {});
 
-  mqtt->on_message([&](const MQTT::Publish & pub) { });
+  mqtt->on_message([&](const MQTT::Publish &pub) {});
 
   mqtt->on_after_message_arrived([&](String topic, String cmd, String payload) {
     // Serial.printf("recv topic: %s\r\n", topic.c_str());
     // Serial.printf("recv cmd: %s\r\n", cmd.c_str());
     // Serial.printf("payload: %s\r\n", payload.c_str());
-    if (cmd == "$/command") {
-      if (payload == "ON") {
+    if (cmd == "$/command")
+    {
+      if (payload == "ON")
+      {
         Serial.println("ON");
         // gpio.on();
         // relayPinState = 1;
       }
-      else if (payload == "OFF") {
+      else if (payload == "OFF")
+      {
         // relayPinState = 0;
         // gpio.off();
         Serial.println("OFF");
       }
-      else if (payload == "FORCE_CONFIG") {
+      else if (payload == "FORCE_CONFIG")
+      {
         SPIFFS.remove("/enabled");
         ESP.restart();
       }
     }
-    else if (cmd == "$/reboot") {
+    else if (cmd == "$/reboot")
+    {
       ESP.restart();
     }
-    else if (cmd == "status") {
+    else if (cmd == "status")
+    {
       // Serial.println("sent & recv.");
     }
-    else {
+    else
+    {
       Serial.println("Another message arrived.");
       // another message.
     }
@@ -199,7 +249,8 @@ void MqttModule::register_receive_hooks(MqttConnector *mqtt) {
   });
 }
 
-void MqttModule::register_publish_hooks(MqttConnector* mqtt) {
+void MqttModule::register_publish_hooks(MqttConnector *mqtt)
+{
   mqtt->on_prepare_data_once([&](void) {
     Serial.println("initializing sensor...");
   });
@@ -207,9 +258,9 @@ void MqttModule::register_publish_hooks(MqttConnector* mqtt) {
   mqtt->on_before_prepare_data([&](void) {
   });
 
-  mqtt->on_prepare_data([&](JsonObject * root) {
-    JsonObject& data = (*root)["d"];
-    JsonObject& info = (*root)["info"];
+  mqtt->on_prepare_data([&](JsonObject *root) {
+    JsonObject &data = (*root)["d"];
+    JsonObject &info = (*root)["info"];
     // data["appVersion"] = LEGEND_APP_VERSION;
     data["myName"] = DEVICE_NAME;
     data["millis"] = millis();
@@ -236,9 +287,10 @@ void MqttModule::register_publish_hooks(MqttConnector* mqtt) {
     Serial.println("PUBLISHING...!");
     Serial.printf("temp = %d\r\n", temp);
 
-  }, PUBLISH_EVERY);
+  },
+                        PUBLISH_EVERY);
 
-  mqtt->on_after_prepare_data([&](JsonObject * root) {
+  mqtt->on_after_prepare_data([&](JsonObject *root) {
     /**************
       JsonObject& data = (*root)["d"];
       data.remove("version");

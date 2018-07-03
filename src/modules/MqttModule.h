@@ -4,6 +4,11 @@
 
 #include <CMMC_Module.h> 
 #include <MqttConnector.h>
+#include <Wire.h>
+#include <Adafruit_ADS1015.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
+#include <CMMC_Sensor.h>
 
 class MqttModule: public CMMC_Module {
   public:
@@ -27,6 +32,12 @@ class MqttModule: public CMMC_Module {
     int PUBLISH_EVERY;
     int MQTT_CONNECT_TIMEOUT; 
     bool MQTT_LWT;
+
+    const int ONE_WIRE_BUS = 14;
+     OneWire *oneWire;
+  DallasTemperature *sensor;
+    Adafruit_ADS1115 *ads1115;
+    CMMC_SENSOR_DATA_T data1;
 };
 
 #endif
