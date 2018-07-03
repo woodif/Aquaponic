@@ -97,7 +97,6 @@ void MqttModule::setup()
   sensor->begin();
   sensor->requestTemperatures();
   DeviceAddress insideThermometer;
-  data1.field1 = sensor->getTempC(insideThermometer);
 
   init_mqtt();
 };
@@ -111,17 +110,13 @@ void MqttModule::loop()
   adc1 = ads1115->readADC_SingleEnded(1);
   adc2 = ads1115->readADC_SingleEnded(2);
   adc3 = ads1115->readADC_SingleEnded(3);
-  Serial.print("Temperature is: ");
-  Serial.println(sensor->getTempCByIndex(0));
-  Serial.print("AIN0: ");
-  Serial.println(adc0);
-  Serial.print("AIN1: ");
-  Serial.println(adc1);
-  Serial.print("AIN2: ");
-  Serial.println(adc2);
-  Serial.print("AIN3: ");
-  Serial.println(adc3);
-  Serial.println(" ");
+
+  DeviceAddress insideThermometer;
+  data1.field1 = sensor->getTempCByIndex(0) * 100;
+  data1.field2 = adc0;
+  data1.field3 = adc1;
+  data1.field4 = adc2;
+  data1.field5 = adc3;
 
   delay(1000);
 
@@ -264,29 +259,19 @@ void MqttModule::register_publish_hooks(MqttConnector *mqtt)
     // data["appVersion"] = LEGEND_APP_VERSION;
     data["myName"] = DEVICE_NAME;
     data["millis"] = millis();
-    // data["relayPinState"] = relayPinState;
+    data["Temp"] = data1.field1;
+    data["PH"] = data1.field2;
+    data["Water"] = data1.field3;
+    data["Level1"] = data1.field4;
+    data["Level2"] = data1.field5;
     // data["sensorType"] = sensorType;
     data["updateInterval"] = PUBLISH_EVERY;
-    // Serial.printf("field1 = %lu \r\n", sensorData.field1);
-    // Serial.printf("field2 = %lu \r\n", sensorData.field2);
-    // Serial.printf("field3 = %lu \r\n", sensorData.field3);
-    // Serial.printf("field4 = %lu \r\n", sensorData.field4);
-    // Serial.printf("field5 = %lu \r\n", sensorData.field5);
-    // Serial.printf("field6 = %lu \r\n", sensorData.field6);
-
-    // if (sensorData.field1) { data["field1"] = sensorData.field1; }
-    // if (sensorData.field2) { data["field2"] = sensorData.field2; }
-    // if (sensorData.field3) { data["field3"] = sensorData.field3; }
-    // if (sensorData.field4) { data["field4"] = sensorData.field4; }
-    // if (sensorData.field5) { data["field5"] = sensorData.field5; }
-    // if (sensorData.field6) { data["field6"] = sensorData.field6; }
-    // if (sensorData.field7) { data["field7"] = sensorData.field7; }
-    // if (sensorData.field8) { data["field8"] = sensorData.field8; }
-    // if (sensorData.ms) { data["ms"] = sensorData.ms; }
-    // if (sensorData.battery) { data["battery"] = sensorData.battery; }
     Serial.println("PUBLISHING...!");
-    Serial.printf("temp = %d\r\n", temp);
-
+    Serial.printf("temp = %d\r\n", data1.field1);
+    Serial.printf("PH = %d\r\n", data1.field2);
+    Serial.printf("Water = %d\r\n", data1.field3);
+    Serial.printf("Level1 = %d\r\n", data1.field4);
+    Serial.printf("Level2 = %d\r\n", data1.field5);
   },
                         PUBLISH_EVERY);
 
